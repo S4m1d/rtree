@@ -16,11 +16,9 @@ fn main() -> std::io::Result<()> {
             true => println!("{}/", file_name.to_string_lossy()),
             false => match file_type.is_file() {
                 true => println!("{}", file_name.to_string_lossy()),
-                false => println!("{}", file_name.to_string_lossy()),
+                false => println!("{}*", file_name.to_string_lossy()),
             },
         }
-
-        println!("{}", file_name.to_string_lossy())
     }
     Ok(())
 }
