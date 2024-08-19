@@ -22,7 +22,7 @@ fn main() -> std::io::Result<()> {
 
         let file_name = entry.file_name();
 
-        if file_name.len() > 0 && !is_include_hidden {
+        if !is_include_hidden {
             if let Some(first_char) = file_name.to_string_lossy().chars().next() {
                 if first_char == '.' {
                     continue;
