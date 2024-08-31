@@ -1,44 +1,99 @@
-use std::{env, fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+use clap::ArgMatches;
+
+pub mod config;
 
 fn main() -> std::io::Result<()> {
-    // command line flags parsing
-    let args: Vec<String> = env::args().collect();
+    let flags = config::read_flags();
 
-    let mut is_include_hidden: bool = false;
+    build_file_tree(flags)
+}
 
-    for arg in args {
-        if arg == "-a" {
-            is_include_hidden = true;
+#[derive(PartialEq)]
+enum FlType {
+    Dir,
+    File,
+    Other,
+}
+
+struct Node {
+    name: String,
+    path: PathBuf,
+    f_type: FlType,
+    level: u8,
+}
+
+impl Node {
+    fn new(name: impl Into<String>, path: PathBuf, f_type: FlType, level: u8) -> Node {
+        Node {
+            name: name.into(),
+            path,
+            f_type,
+            level,
         }
     }
+}
 
-    // programm logic
-    let cur_path = Path::new(".");
+fn build_file_tree(flags: ArgMatches) -> std::io::Result<()> {
+    let mut stack: Vec<Node> = Vec::new();
 
-    let cur_dir_entries = fs::read_dir(cur_path)?;
+    stack.push(Node::new(".", Path::new(".").to_path_buf(), FlType::Dir, 0));
 
-    for entry in cur_dir_entries {
-        let entry = entry?;
+    while !stack.is_empty() {
+        if let Some(node) = stack.pop() {
+            let cur_level = node.level;
 
-        let file_name = entry.file_name();
+            if cur_level < *flags.get_one("Level").expect("Level is required") {
+                if node.f_type == FlType::Dir {
+                    let cur_dir_entries = fs::read_dir(node.path.clone())?;
 
-        if !is_include_hidden {
-            if let Some(first_char) = file_name.to_string_lossy().chars().next() {
-                if first_char == '.' {
-                    continue;
+                    for entry in cur_dir_entries {
+                        let entry = entry?;
+
+                        let file_name = entry.file_name().to_string_lossy().into_owned();
+
+                        if !flags.contains_id("All") {
+                            if let Some(first_char) = file_name.chars().next() {
+                                if first_char == '.' {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        let f_type;
+
+                        match entry.file_type()?.is_dir() {
+                            true => f_type = FlType::Dir,
+                            false => match entry.file_type()?.is_file() {
+                                true => f_type = FlType::File,
+                                false => f_type = FlType::Other,
+                            },
+                        }
+
+                        stack.push(Node::new(file_name, entry.path(), f_type, cur_level + 1));
+                    }
                 }
+
+                render_node(&node);
             }
         }
-
-        let file_type = entry.file_type()?;
-
-        match file_type.is_dir() {
-            true => println!("{}/", file_name.to_string_lossy()),
-            false => match file_type.is_file() {
-                true => println!("{}", file_name.to_string_lossy()),
-                false => println!("{}*", file_name.to_string_lossy()),
-            },
-        }
     }
+
     Ok(())
+}
+
+fn render_node(node: &Node) {
+    let indent: String = "  ".repeat(node.level.into());
+
+    let name_to_render = match &node.f_type {
+        FlType::Dir => format!("{}/", node.name),
+        FlType::File => node.name.clone(),
+        FlType::Other => format!("{}*", node.name),
+    };
+
+    println!("{indent}{name_to_render}")
 }
