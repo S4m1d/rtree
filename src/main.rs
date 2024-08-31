@@ -47,7 +47,7 @@ fn build_file_tree(flags: ArgMatches) -> std::io::Result<()> {
         if let Some(node) = stack.pop() {
             let cur_level = node.level;
 
-            if cur_level < *flags.get_one("Level").expect("Level is required") {
+            if cur_level <= *flags.get_one("Level").expect("Level is required") {
                 if node.f_type == FlType::Dir {
                     let cur_dir_entries = fs::read_dir(node.path.clone())?;
 
@@ -87,7 +87,11 @@ fn build_file_tree(flags: ArgMatches) -> std::io::Result<()> {
 }
 
 fn render_node(node: &Node) {
-    let indent: String = "  ".repeat(node.level.into());
+    let indent: String = format!(
+        "{}{}",
+        "  ".repeat(node.level.saturating_sub(1).into()),
+        "|-- "
+    );
 
     let name_to_render = match &node.f_type {
         FlType::Dir => format!("{}/", node.name),
